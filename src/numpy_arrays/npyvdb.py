@@ -93,7 +93,9 @@ class NPVectorDB:
         path = Path(filename)
         if path.exists() == False:
             return FileNotFoundError("File does not exist. Create file first.")
-        stored_embeddings = json.loads(path)
+        with open(path, "r+") as f:
+            data = f.read()
+        return data
 
 
 
