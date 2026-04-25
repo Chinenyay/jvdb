@@ -23,6 +23,7 @@ class VectorDB:
         self.client = OpenAI(api_key = os.environ['OPENAI_API_KEY'])
         self._generate_embeddings_for_stored_texts()
         self.name = name
+        self.store =+ {"db_name": self.name}
 
 
     def _generate_embeddings(self, text_to_embed: str) -> list:
@@ -34,11 +35,13 @@ class VectorDB:
         return response.data[0].embedding
 
     def _generate_embeddings_for_stored_texts(self):
+        embeddings_list = []
         for text in self.data:
             temp_map = {}
             embeddings = self._generate_embeddings(text)
             temp_map["text"], temp_map["embeddings"] = text, embeddings
-            self.store.append(temp_map)
+            embeddings_list.append(temp_map)
+        self.store =+ embeddings_list
     
     def _generate_embeddings_for_query_text(self, query_text) -> dict[str, list]:
         embeddings = self._generate_embeddings(query_text)
@@ -71,7 +74,7 @@ class VectorDB:
     def search(self, query_text: str, k:Optional[int] = None) -> list:
         query = self._generate_embeddings_for_query_text(query_text)
         query_embeddings = query["embeddings"]
-        store_copy = [item for item in self.store]
+        store_copy = [item for item in self.store[1]]
 
         for item in store_copy:
             embedding = item["embeddings"]
@@ -109,18 +112,26 @@ class VectorDB:
         with open(file_path, "w") as f:
             f.write(data)
 
-    
 
     def _get_name(self):
-        return self.name
+        db_name = self.name
+        return db_name
     
     def save_to_disk(self):
         file_name = self._get_name()
         file_path = f'src/datastore/{file_name}.json'
+
         self._write_to_file(json.dumps(self.store), file_path)
-        print({"message": f"db file saved to {file_path}"})
+        return {"message": f"db file saved to {file_path}"}
 
+    def _existing_db(self):
+        path = f"src/datastore/{self.name}/json"
+        file_path = Path(path)
+        data = 
+        with open(file_path, "r+") as f:
+            data = f.read(json.load(f))
 
+        
     def upsert(self, new_data: list):
         if type(new_data) != "list":
             raise ValueError("new data must be a list")

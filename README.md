@@ -4,10 +4,17 @@ Level 0 [in progress]: use python lists to store corresponding texts and vector 
 leve 0.5: use numpy arrays to store the text-embeddings pairs
 
 todo on level 0
+db methods to add
+    - upsert()
+    - save_to_disk()
+    - filter()
+- add tests
+- add profiling
 - use dataclasses to write type annotations for function args, to make code more readable?
+
 - add a filter step in search
 - measure search speed
 - measure memory usage
-- compare python list and numpy array implementations
+- profile and compare python list and numpy array implementations
 
 
