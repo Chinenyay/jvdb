@@ -3,27 +3,21 @@ from openai import OpenAI
 import os
 from pathlib import Path
 import json
-
-'''
-    methods:
-    __init__(self, name, data)
-    
-    generate_embeddings_for_stored_data()
-    normalize_stored_embeddings()
-    normalize_query_embeddings()
-    save_to_disk()
-    load_from_disk()
-    search()
-    '''
-
+from typing import Optional, Any
 
 class NPVectorDB:
-    def __init__(self, name: str, data: list[str]):
+    def __init__(self, name: str):
         self.name = name
-        self.data = data
+        self.data_file_name = f"src/datastore/{self.name}.data.json"
+        self.emb_file_name = f"src/datastore/{self.name}.emb.json"
+        self.data: list[str] = self.load_from_disk(self.data_file_name)
         self.client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
         self.model = "text-embedding-3-large"
-        self.embeddings = self._create_embeddings_array()
+        self.embeddings = self.load_from_disk(self.emb_file_name)
+
+
+    def add_data(self, new_data: list[str]):
+        self.data.extend(new_data)
     
     def _generate_embeddings(self, input: str):
         response = self.client.embeddings.create(
@@ -88,27 +82,55 @@ class NPVectorDB:
             })
         return top_k_matches
 
-    def load_from_disk(self):
-        filename = f"src/datastore/{self.name}.json"
-        path = Path(filename)
+    def load_from_disk(self, filename) -> list[str]:
+        filename = filename
+        path = Path(filename) 
         if path.exists() == False:
-            return FileNotFoundError("File does not exist. Create file first.")
+            return []
         with open(path, "r+") as f:
-            data = f.read()
+            data = json.load(f)
         return data
+    
 
+#todo: save embeddings after normalization to npz files.
+    def save_to_disk(self):
+        data_file_name = self.data_file_name
+        emb_file_name = self.emb_file_name
 
+        data_path = Path(data_file_name)
+        emb_path = Path(emb_file_name)
+
+        with open(data_path, "w+") as f:
+            json.dump(self.data, f)
+        
+        with open(emb_path, "w+") as f:
+            json.dump(self._create_embeddings_array().tolist(), f)
+        
+        return {"message": f"saved data and embeddings to {data_path}, {emb_path} respectively."}
 
 def main():
-    test_data = ["Paris, France", "London, UK", "Hello world"]
-    np_db = NPVectorDB(name="test_db", data=test_data)
-    norm_embs = np_db._normalize_stored_embeddings()
+    # test_data = ["Paris, France", "London, UK", "Hello world"]
+
+    # test_data_2 = ["When are you home?", "I love New York"]
+    # test_data_3 = ["Hi"]
+    np_db = NPVectorDB(name="test_db")
+
+    # np_db.add_data(test_data)
+    # np_db.add_data(test_data_2)
+    # np_db._generate_embeddings_for_stored_data(test_data_3)
+    # np_db.add_data(test_data_3)
+
+    # norm_embs = np_db._normalize_stored_embeddings()
     # print(norm_embs)
-    test_query = "programming"
-    normed_query_emb = np_db._normalize_query_embeddings(test_query)
+    # test_query = "programming"
+    # normed_query_emb = np_db._normalize_query_embeddings(test_query)
 
     # cosine_sim = np_db._cosine_similarity(norm_embs, normed_query_emb)
-    print(np_db.search(test_query, 2))
+    # print(np_db.search(test_query, 2))
+    # print(np_db.save_to_disk())
+    # print(np_db.data)
+    # print(np_db.embeddings)
+    # print(np_db.data_file_name)
     
     # print(cosine_sim)
 if __name__ == "__main__":

@@ -1,16 +1,25 @@
 # # practice numpy arrays
-# import numpy as np
+import numpy as np
 # import cProfile
 from pathlib import Path
 import json
 
 
-# embeddings = [
-#     [0.3, 0.2, 0.1],
-#     [0.1, 0.2, 0.3],
-#     [3.0, 2.0, 1.0],
-#     [1.0, 2.0, 3.0]
-# ]
+embeddings = [
+    [0.3, 0.2, 0.1],
+    [0.1, 0.2, 0.3],
+    [3.0, 2.0, 1.0],
+    [1.0, 2.0, 3.0]
+]
+
+emb_arr = np.array(embeddings, dtype=np.float16)
+
+
+# np.savez_compressed("numpy_file.npz", embeddings=emb_arr)
+
+data = np.load('/Users/jenniferumoke/source/jvdb/numpy_file.npz')
+print(data['embeddings'])
+
 
 # list_vector = [1.0, 1.0, 1.0, 1.0]
 
@@ -113,32 +122,32 @@ import json
 # x = sort_arr(unsorted, sorted)
 # # print(sorted_indices)
 # print(x)
-name = "hello"
-def load_from_disk():
-    filename = f"src/datastore/{name}.json"
-    path = Path(filename)
-    if path.exists() == False:
-        return FileNotFoundError("File does not exist. Create file first.")
-    with open(path, "r+") as f:
-        data = f.read()
-    return data
+# name = "hello"
+# def load_from_disk():
+#     filename = f"src/datastore/{name}.json"
+#     path = Path(filename)
+#     if path.exists() == False:
+#         return FileNotFoundError("Data store does not exist. Create it first with save_to_disk().")
+#     with open(path, "r+") as f:
+#         data = f.read()
+#     return data
 
-def save_to_disk(name, content):
-    filename = f"src/datastore/{name}.json"
-    path = Path(filename)
-    if path.exists() == True:
-        with open(path, "r+") as f:
-            existing_content = json.load(f)
-    else:
-        existing_content = []
+# def save_to_disk(name, content):
+#     filename = f"src/datastore/{name}.json"
+#     path = Path(filename)
+#     if path.exists() == True:
+#         with open(path, "r+") as f:
+#             existing_content = json.load(f)
+#     else:
+#         existing_content = []
 
-    existing_content.append(content)
-    with open(path, "w+") as f:
-        json.dump(existing_content, f)
-    return {"message": f"successfully wrote {content} to {filename}"}
+#     existing_content.append(content)
+#     with open(path, "w+") as f:
+#         json.dump(existing_content, f)
+#     return {"message": f"successfully wrote {content} to {filename}"}
 
-saved = save_to_disk("data", "Where are we going?")
+# saved = save_to_disk("data", "Where are we going?")
 
 
-# print(load_from_disk())
-print(saved)
+# # print(load_from_disk())
+# print(saved)
