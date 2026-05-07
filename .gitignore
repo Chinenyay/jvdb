@@ -1,2 +1,71 @@
+# Secrets and local config
 .env
-__pycache__
+.env.*
+!.env.example
+.envrc
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.tox/
+.nox/
+.hypothesis/
+.dmypy.json
+dmypy.json
+
+# Coverage reports
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Build and packaging output
+build/
+dist/
+site/
+*.egg-info/
+.eggs/
+*.egg
+*.whl
+pip-wheel-metadata/
+
+# uv and tool caches
+.uv-cache/
+
+# Generated local vector database files
+src/datastore/*.data.json
+src/datastore/*.emb.json
+src/datastore/*.emb.npz
+src/datastore/*.json
+src/datastore/*.npz
+!src/datastore/__init__.py
+
+# Local numpy artifacts
+*.npy
+*.npz
+
+# Logs and profiling output
+*.log
+logs/
+*.prof
+.prof/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

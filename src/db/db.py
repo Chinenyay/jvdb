@@ -3,21 +3,34 @@ from openai import OpenAI
 import os
 from pathlib import Path
 import json
-from typing import Optional, Any
 
-class NPVectorDB:
+from dotenv import load_dotenv
+
+load_dotenv()
+
+class VectorDB:
     def __init__(self, name: str):
         self.name = name
         self.data_file_name = f"src/datastore/{self.name}.data.json"
-        self.emb_file_name = f"src/datastore/{self.name}.emb.json"
+        self.emb_file_name = f"src/datastore/{self.name}.emb.npz"
         self.data: list[str] = self.load_from_disk(self.data_file_name)
+        self.embeddings = self.load_from_disk(self.emb_file_name)
         self.client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
         self.model = "text-embedding-3-large"
-        self.embeddings = self.load_from_disk(self.emb_file_name)
+        # self.embeddings = self._normalize_stored_embeddings(self.load_from_disk(self.emb_file_name), axis=1)
 
+    def upsert(self, new_data: list[str]):
+        new_data_embeddings = np.array(self._generate_embeddings_for_stored_data(new_data), dtype=np.float32)
+        new_data_embeddings = self._normalize(new_data_embeddings, self._norm(new_data_embeddings, axis=1))
 
-    def add_data(self, new_data: list[str]):
+        if len(self.embeddings) == 0:
+            self.embeddings = new_data_embeddings
+        else:
+            self.embeddings = np.vstack([self.embeddings, new_data_embeddings])
+            
         self.data.extend(new_data)
+        self.save_to_disk()
+
     
     def _generate_embeddings(self, input: str):
         response = self.client.embeddings.create(
@@ -51,12 +64,11 @@ class NPVectorDB:
         normalized = embeddings / norms
         return normalized
     
-    def _normalize_stored_embeddings(self):
-        embs = self.embeddings
-        emb_norms = self._norm(embs, axis=1)
+    def _normalize_stored_embeddings(self, embeddings, axis):
+        embs = embeddings
+        emb_norms = self._norm(embs, axis=axis)
         normalized_embs = self._normalize(embs, emb_norms)
-        self.embeddings = normalized_embs
-        return self.embeddings
+        return normalized_embs
     
     def _normalize_query_embeddings(self, query):
         query_emb = self._generate_query_embeddings(query)
@@ -64,12 +76,16 @@ class NPVectorDB:
         normalized_query_emb = self._normalize(query_emb, query_norm)
         return normalized_query_emb
     
-    def _cosine_similarity(self, vector_embs, query_emb):
+    def _cosine_similarity(self, vector_embs, query_emb) -> list[float]:
         result = vector_embs @ query_emb
         return result
     
     def search(self, query, k: int):
-        vector_embs = self._normalize_stored_embeddings()
+        if k < 1:
+            raise ValueError("number of matches cannot be less than 1.")
+        if k > len(self.embeddings) or k < len(self.data):
+            raise ValueError("number of matches cannot be more than number of records.")
+        vector_embs = self.embeddings
         query_emb = self._normalize_query_embeddings(query)
         similarity_scores = self._cosine_similarity(vector_embs, query_emb)
         sorted_scores_indices = np.argsort(similarity_scores)[::-1][:k]
@@ -83,16 +99,18 @@ class NPVectorDB:
         return top_k_matches
 
     def load_from_disk(self, filename) -> list[str]:
-        filename = filename
-        path = Path(filename) 
+        file_name = filename
+        path = Path(file_name) 
         if path.exists() == False:
             return []
+        if ".npz" in path.name:
+            data = np.load(path)
+            return data["arr_0"]
+        
         with open(path, "r+") as f:
             data = json.load(f)
         return data
-    
 
-#todo: save embeddings after normalization to npz files.
     def save_to_disk(self):
         data_file_name = self.data_file_name
         emb_file_name = self.emb_file_name
@@ -102,36 +120,16 @@ class NPVectorDB:
 
         with open(data_path, "w+") as f:
             json.dump(self.data, f)
-        
-        with open(emb_path, "w+") as f:
-            json.dump(self._create_embeddings_array().tolist(), f)
-        
+
+        np.savez_compressed(emb_path, self.embeddings)
+
         return {"message": f"saved data and embeddings to {data_path}, {emb_path} respectively."}
 
 def main():
-    # test_data = ["Paris, France", "London, UK", "Hello world"]
+    data = ["We look good together", "We are happy here", "The capital of Paris is France"]
+    np_db = VectorDB(name="test_db")
+    # np_db.upsert(data)
+    print(np_db.search("How are you?", k=-2))
 
-    # test_data_2 = ["When are you home?", "I love New York"]
-    # test_data_3 = ["Hi"]
-    np_db = NPVectorDB(name="test_db")
-
-    # np_db.add_data(test_data)
-    # np_db.add_data(test_data_2)
-    # np_db._generate_embeddings_for_stored_data(test_data_3)
-    # np_db.add_data(test_data_3)
-
-    # norm_embs = np_db._normalize_stored_embeddings()
-    # print(norm_embs)
-    # test_query = "programming"
-    # normed_query_emb = np_db._normalize_query_embeddings(test_query)
-
-    # cosine_sim = np_db._cosine_similarity(norm_embs, normed_query_emb)
-    # print(np_db.search(test_query, 2))
-    # print(np_db.save_to_disk())
-    # print(np_db.data)
-    # print(np_db.embeddings)
-    # print(np_db.data_file_name)
-    
-    # print(cosine_sim)
 if __name__ == "__main__":
     main()
