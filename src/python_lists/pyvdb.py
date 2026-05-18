@@ -6,6 +6,7 @@ from typing import Optional
 from pathlib import Path
 import json
 
+
 class VectorDB:
     '''
     Vector database implemented using python lists.\n

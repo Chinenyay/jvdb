@@ -3,6 +3,8 @@ from openai import OpenAI
 import os
 from pathlib import Path
 import json
+from typing import Any
+from hashlib import blake2b
 
 from dotenv import load_dotenv
 
@@ -13,23 +15,39 @@ class VectorDB:
         self.name = name
         self.data_file_name = f"src/datastore/{self.name}.data.json"
         self.emb_file_name = f"src/datastore/{self.name}.emb.npz"
-        self.data: list[str] = self.load_from_disk(self.data_file_name)
+        self.data = self.load_from_disk(self.data_file_name)
         self.embeddings = self.load_from_disk(self.emb_file_name)
         self.client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
         self.model = "text-embedding-3-large"
         # self.embeddings = self._normalize_stored_embeddings(self.load_from_disk(self.emb_file_name), axis=1)
 
-    def upsert(self, new_data: list[str]):
-        new_data_embeddings = np.array(self._generate_embeddings_for_stored_data(new_data), dtype=np.float32)
-        new_data_embeddings = self._normalize(new_data_embeddings, self._norm(new_data_embeddings, axis=1))
+    def _stable_hash(self, text: str) -> int:
+        digest = blake2b(text.encode("utf-8"), digest_size=8).digest()
+        hash = int.from_bytes(digest, "little", signed=False)
+        return hash
 
-        if len(self.embeddings) == 0:
-            self.embeddings = new_data_embeddings
-        else:
-            self.embeddings = np.vstack([self.embeddings, new_data_embeddings])
-            
-        self.data.extend(new_data)
-        self.save_to_disk()
+    def is_dup(self, new_data) -> bool:
+        for data in self.data:
+            for key, value in data.items():
+                if self._stable_hash(value) == self._stable_hash(new_data):
+                    return True
+        return False
+
+    def upsert(self, new_data: str):
+        if not self.is_dup(new_data):
+            new_data_embeddings = np.array(self._generate_embeddings_for_stored_data(new_data), dtype=np.float32)
+            new_data_embeddings = self._normalize(new_data_embeddings, self._norm(new_data_embeddings, axis=1))
+
+            if len(self.embeddings) == 0:
+                self.embeddings = new_data_embeddings
+            else:
+                self.embeddings = np.vstack([self.embeddings, new_data_embeddings])
+
+            data_dict = {}
+            data_dict[len(self.data)] = new_data
+            self.data.append(data_dict)
+
+            self.save_to_disk()
 
     
     def _generate_embeddings(self, input: str):
@@ -83,7 +101,7 @@ class VectorDB:
     def search(self, query, k: int):
         if k < 1:
             raise ValueError("number of matches cannot be less than 1.")
-        if k > len(self.embeddings) or k < len(self.data):
+        if k > len(self.embeddings) or k > len(self.data):
             raise ValueError("number of matches cannot be more than number of records.")
         vector_embs = self.embeddings
         query_emb = self._normalize_query_embeddings(query)
@@ -98,7 +116,7 @@ class VectorDB:
             })
         return top_k_matches
 
-    def load_from_disk(self, filename) -> list[str]:
+    def load_from_disk(self, filename):
         file_name = filename
         path = Path(file_name) 
         if path.exists() == False:
@@ -128,8 +146,9 @@ class VectorDB:
 def main():
     data = ["We look good together", "We are happy here", "The capital of Paris is France"]
     np_db = VectorDB(name="test_db")
-    # np_db.upsert(data)
-    print(np_db.search("How are you?", k=-2))
+    np_db.upsert("The capital of Paris is France")
+    # print(np_db.search("How are you?", k=2))
+    
 
 if __name__ == "__main__":
     main()
