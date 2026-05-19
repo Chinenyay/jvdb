@@ -16,6 +16,7 @@ class VectorDB:
         self.data_file_name = f"src/datastore/{self.name}.data.json"
         self.emb_file_name = f"src/datastore/{self.name}.emb.npz"
         self.data = self.load_from_disk(self.data_file_name)
+        self.hashed_data = self._hash_data_items()
         self.embeddings = self.load_from_disk(self.emb_file_name)
         self.client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
         self.model = "text-embedding-3-large"
@@ -26,28 +27,43 @@ class VectorDB:
         hash = int.from_bytes(digest, "little", signed=False)
         return hash
 
+    def _hash_data_items(self):
+        hash_data_map = {}
+        for item in self.data:
+            item_hash = self._stable_hash(item["content"])
+            hash_data_map[item_hash] = item
+        return hash_data_map
+    
     def is_dup(self, new_data) -> bool:
-        for data in self.data:
-            for key, value in data.items():
-                if self._stable_hash(value) == self._stable_hash(new_data):
-                    return True
-        return False
+        new_data_hash = self._stable_hash(new_data)
+        if new_data_hash in self.hashed_data:
+            return True
+        else:
+            return False
 
     def upsert(self, new_data: str):
-        if not self.is_dup(new_data):
-            new_data_embeddings = np.array(self._generate_embeddings_for_stored_data(new_data), dtype=np.float32)
-            new_data_embeddings = self._normalize(new_data_embeddings, self._norm(new_data_embeddings, axis=1))
+        if self.is_dup(new_data):
+            print("Duplicate item. Skipping upsert.")
+            return
+        
+        new_data_embeddings = np.array(self._generate_embeddings_for_stored_data(new_data), dtype=np.float32)
+        new_data_embeddings = self._normalize(new_data_embeddings, self._norm(new_data_embeddings, axis=1))
 
-            if len(self.embeddings) == 0:
-                self.embeddings = new_data_embeddings
-            else:
-                self.embeddings = np.vstack([self.embeddings, new_data_embeddings])
+        if len(self.embeddings) == 0:
+            self.embeddings = new_data_embeddings
+        else:
+            self.embeddings = np.vstack([self.embeddings, new_data_embeddings])
 
-            data_dict = {}
-            data_dict[len(self.data)] = new_data
-            self.data.append(data_dict)
+        data_dict = {
+            "id": len(self.data),
+            "content": new_data
+        }
 
-            self.save_to_disk()
+        self.data.append(data_dict)
+        new_data_hash = self._stable_hash(new_data)
+        self.hashed_data[new_data_hash] = new_data
+
+        self.save_to_disk()
 
     
     def _generate_embeddings(self, input: str):
@@ -99,6 +115,7 @@ class VectorDB:
         return result
     
     def search(self, query, k: int):
+        # rework search to use new id comparison between data dict keys and index of np ndarr
         if k < 1:
             raise ValueError("number of matches cannot be less than 1.")
         if k > len(self.embeddings) or k > len(self.data):
@@ -121,6 +138,7 @@ class VectorDB:
         path = Path(file_name) 
         if path.exists() == False:
             return []
+        
         if ".npz" in path.name:
             data = np.load(path)
             return data["arr_0"]

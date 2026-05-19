@@ -55,3 +55,14 @@ def write_to_file(data, path):
 # for d in data:
 #     for key, value in d.items():
 #         print(value)
+
+'''rough version of is_dup() function'''
+    # def is_dup(self, new_data) -> bool:
+    #     # use hashmap approach to reduce time complexity to o(1)
+    #     # store an index hash for each item in data, and check whether new_data has exists in index
+    #     # for data in self.data:
+    #     #     for key, value in data.items():
+    #     #         if self._stable_hash(value) == self._stable_hash(new_data):
+    #     #             return True
+    #     # return False
+    #     return True
