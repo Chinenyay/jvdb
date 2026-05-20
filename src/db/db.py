@@ -46,7 +46,7 @@ class VectorDB:
             print("Duplicate item. Skipping upsert.")
             return
         
-        new_data_embeddings = np.array(self._generate_embeddings_for_stored_data(new_data), dtype=np.float32)
+        new_data_embeddings = np.array([self._generate_embeddings(new_data)], dtype=np.float32)
         new_data_embeddings = self._normalize(new_data_embeddings, self._norm(new_data_embeddings, axis=1))
 
         if len(self.embeddings) == 0:
@@ -65,23 +65,12 @@ class VectorDB:
 
         self.save_to_disk()
 
-    
     def _generate_embeddings(self, input: str):
         response = self.client.embeddings.create(
             input=input,
             model=self.model
         )
         return response.data[0].embedding
-    
-    def _generate_embeddings_for_stored_data(self, data):
-        data_list = []
-        for item in data:
-            emb = self._generate_embeddings(item)
-            data_list.append(emb)
-        return data_list
-
-    def _create_embeddings_array(self):
-        return np.array(self._generate_embeddings_for_stored_data(self.data), dtype=np.float32)
     
     def _generate_query_embeddings(self, query):
         response = self.client.embeddings.create(
@@ -164,8 +153,10 @@ class VectorDB:
 def main():
     data = ["We look good together", "We are happy here", "The capital of Paris is France"]
     np_db = VectorDB(name="test_db")
-    np_db.upsert("The capital of Paris is France")
-    # print(np_db.search("How are you?", k=2))
+    # np_db.upsert("We are happy here")
+    # np_db.upsert("The capital of Paris is France")
+    print(np_db.search("What is the capital of Paris?", k=1))
+    # print(np.shape(np_db.embeddings))
     
 
 if __name__ == "__main__":
