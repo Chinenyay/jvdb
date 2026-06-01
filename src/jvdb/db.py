@@ -1,4 +1,5 @@
 import numpy as np
+import argparse
 from openai import OpenAI
 import os
 from pathlib import Path
@@ -10,17 +11,22 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+JVDB_HOME = Path.home() / ".jvdb"
+
+DATASTORE_DIR = JVDB_HOME / "datastore"
+
+DATASTORE_DIR.mkdir(parents=True, exist_ok=True)
+
 class VectorDB:
     def __init__(self, name: str):
         self.name = name
-        self.data_file_name = f"src/datastore/{self.name}.data.json"
-        self.emb_file_name = f"src/datastore/{self.name}.emb.npz"
+        self.data_file_name = DATASTORE_DIR / f"{self.name}.data.json"
+        self.emb_file_name = DATASTORE_DIR / f"{self.name}.emb.npz"
         self.data = self.load_from_disk(self.data_file_name)
         self.hashed_data = self._hash_data_items()
         self.embeddings = self.load_from_disk(self.emb_file_name)
         self.client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
         self.model = "text-embedding-3-large"
-        # self.embeddings = self._normalize_stored_embeddings(self.load_from_disk(self.emb_file_name), axis=1)
 
     def _stable_hash(self, text: str) -> int:
         digest = blake2b(text.encode("utf-8"), digest_size=8).digest()
@@ -41,7 +47,7 @@ class VectorDB:
         else:
             return False
 
-    def upsert(self, new_data: str):
+    def insert(self, new_data: str):
         if self.is_dup(new_data):
             print("Duplicate item. Skipping upsert.")
             return
@@ -103,14 +109,30 @@ class VectorDB:
         result = vector_embs @ query_emb
         return result
     
+    def _validation_checks(self):
+        if len(self.embeddings) != len(self.data):
+            print("embeddings and data are not the same length. mismatched index.")
+            return False
+        
+        elif len(self.data) != np.shape(self.embeddings)[0]:
+            print("embeddings rows != data rows. mismatched index.")
+            return False
+        
+        else:
+            return True
+
     def search(self, query, k: int):
-        # rework search to use new id comparison between data dict keys and index of np ndarr
+        if self._validation_checks() is False:
+            return
+
         if k < 1:
             raise ValueError("number of matches cannot be less than 1.")
         if k > len(self.embeddings) or k > len(self.data):
             raise ValueError("number of matches cannot be more than number of records.")
+        
         vector_embs = self.embeddings
         query_emb = self._normalize_query_embeddings(query)
+
         similarity_scores = self._cosine_similarity(vector_embs, query_emb)
         sorted_scores_indices = np.argsort(similarity_scores)[::-1][:k]
 
@@ -120,12 +142,14 @@ class VectorDB:
                 "text": self.data[index],
                 "score": float(similarity_scores[index])
             })
+
         return top_k_matches
 
     def load_from_disk(self, filename):
         file_name = filename
-        path = Path(file_name) 
-        if path.exists() == False:
+        path = Path(file_name)
+
+        if not path.exists():
             return []
         
         if ".npz" in path.name:
@@ -134,6 +158,7 @@ class VectorDB:
         
         with open(path, "r+") as f:
             data = json.load(f)
+
         return data
 
     def save_to_disk(self):
@@ -151,12 +176,34 @@ class VectorDB:
         return {"message": f"saved data and embeddings to {data_path}, {emb_path} respectively."}
 
 def main():
-    data = ["We look good together", "We are happy here", "The capital of Paris is France"]
-    np_db = VectorDB(name="test_db")
-    # np_db.upsert("We are happy here")
-    # np_db.upsert("The capital of Paris is France")
-    print(np_db.search("What is the capital of Paris?", k=1))
-    # print(np.shape(np_db.embeddings))
+    parser = argparse.ArgumentParser(prog="jvdb")
+
+    parser.add_argument(
+        "--db",
+        default="default",
+        help="database name to use"
+    )
+
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    insert_parser = subparsers.add_parser("insert")
+    insert_parser.add_argument("text")
+
+    search_parser = subparsers.add_parser("search")
+    search_parser.add_argument("query")
+    search_parser.add_argument("-k", type=int, default=2)
+
+    args = parser.parse_args()
+
+    db = VectorDB(name=args.db)
+
+    if args.command == "insert":
+        db.insert(args.text)
+    
+    elif args.command == "search":
+        results = db.search(args.query, k=args.k)
+        for result in results:
+            print(result)
     
 
 if __name__ == "__main__":
